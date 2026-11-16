@@ -6,6 +6,13 @@ auslesen, einordnen und im Klartext anzeigen.
 
 Das Projekt steht in keiner Verbindung zu Adapter- oder Fahrzeugherstellern.
 
+> **English summary:** Open-source, read-only vehicle diagnostics for Volkswagen Group
+> cars over Bluetooth LE adapters that speak the ELM327 command dialect. The first goal is
+> reading the fault memory of every control unit and explaining it in plain language.
+> Every outgoing command passes an allowlist that only admits read requests. Early stage:
+> the stack is tested against a simulator and has not yet run on real hardware. The
+> documentation is in German for now.
+
 ## Stand
 
 | Baustein | Stand |
