@@ -34,8 +34,8 @@ import { renderRecon, renderScan } from "./render.ts";
 
 /**
  * The only ways this file writes text to the terminal. Device names and adapter replies
- * are untrusted, so everything is made inert first (see printable.ts). The one direct
- * process.stdout.write below prints a counter built from our own numbers.
+ * are untrusted, so everything is made inert first (see printable.ts). The only direct
+ * writes further down print a progress counter built from our own numbers.
  */
 function say(text: string): void {
   process.stdout.write(printable(text) + "\n");
