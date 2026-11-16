@@ -29,7 +29,21 @@ import {
   scanVag,
 } from "@klartext/core";
 import { BluetoothUnavailableError, connect, scanForDevices, type SeenDevice } from "./bleTransport.ts";
+import { printable } from "./printable.ts";
 import { renderRecon, renderScan } from "./render.ts";
+
+/**
+ * The only ways this file writes text to the terminal. Device names and adapter replies
+ * are untrusted, so everything is made inert first (see printable.ts). The one direct
+ * process.stdout.write below prints a counter built from our own numbers.
+ */
+function say(text: string): void {
+  process.stdout.write(printable(text) + "\n");
+}
+
+function complain(text: string): void {
+  process.stderr.write(printable(text) + "\n");
+}
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..", "..");
 const VERSION = "0.1.0";
@@ -64,19 +78,19 @@ function describeDevice(device: SeenDevice): string {
 }
 
 async function doctor(options: Options): Promise<number> {
-  console.log(`Suche ${options.seconds} s nach Bluetooth-LE-Geräten ...`);
+  say(`Suche ${options.seconds} s nach Bluetooth-LE-Geräten ...`);
   const scan = await scanForDevices({ seconds: options.seconds, device: options.device });
   if (scan.devices.length === 0) {
-    console.log("Kein Gerät gefunden. Bluetooth funktioniert, aber es sendet nichts in Reichweite.");
+    say("Kein Gerät gefunden. Bluetooth funktioniert, aber es sendet nichts in Reichweite.");
     return 1;
   }
   const candidates = scan.devices.filter((d) => d.match !== undefined);
-  console.log(`\n${scan.devices.length} Geräte gesehen, ${candidates.length} mögliche Adapter:\n`);
+  say(`\n${scan.devices.length} Geräte gesehen, ${candidates.length} mögliche Adapter:\n`);
   for (const device of scan.devices) {
-    console.log(`  ${device.match !== undefined ? "*" : " "} ${describeDevice(device)}`);
+    say(`  ${device.match !== undefined ? "*" : " "} ${describeDevice(device)}`);
   }
   if (candidates.length === 0) {
-    console.log(
+    say(
       "\nKein Gerät sieht nach dem Adapter aus. Steckt er im Auto (er braucht 12 V)? Ist die Carly-App am Handy geschlossen?" +
         "\nFalls er in der Liste steht: mit --device <Namensteil> auswählen.",
     );
@@ -123,10 +137,10 @@ async function openSession(command: Command, options: Options): Promise<Session>
 
   let transport: ByteTransport;
   if (options.sim) {
-    console.log("Simulation: kein Bluetooth, kein echtes Fahrzeug. Alle Werte sind erfunden.\n");
+    say("Simulation: kein Bluetooth, kein echtes Fahrzeug. Alle Werte sind erfunden.\n");
     transport = new ElmSimulator({ ecus: createDemoVehicle().ecus });
   } else {
-    console.log(`Suche ${options.seconds} s nach dem Adapter ...`);
+    say(`Suche ${options.seconds} s nach dem Adapter ...`);
     const scan = await scanForDevices({ seconds: options.seconds, device: options.device });
     const candidates = scan.devices.filter((d) => d.match !== undefined);
     capture.record("note", `devices seen: ${JSON.stringify(scan.devices)}`);
@@ -143,13 +157,13 @@ async function openSession(command: Command, options: Options): Promise<Session>
       );
     }
     if (candidates.length > 1) {
-      console.log("Mehrere mögliche Adapter, nehme den mit dem stärksten Signal:");
-      for (const device of candidates) console.log(`    ${describeDevice(device)}`);
+      say("Mehrere mögliche Adapter, nehme den mit dem stärksten Signal:");
+      for (const device of candidates) say(`    ${describeDevice(device)}`);
     }
-    console.log(`Verbinde mit ${describeDevice(chosen)} ...`);
+    say(`Verbinde mit ${describeDevice(chosen)} ...`);
     const connection = await connect(scan, chosen, (reason) => {
       capture.record("note", `connection lost: ${reason}`);
-      console.error(`\nVerbindung zum Adapter verloren (${reason}).`);
+      complain(`\nVerbindung zum Adapter verloren (${reason}).`);
     });
     capture.record(
       "note",
@@ -160,7 +174,7 @@ async function openSession(command: Command, options: Options): Promise<Session>
         mtu: connection.mtu,
       })}`,
     );
-    console.log(
+    say(
       `Verbunden. Dienste: ${connection.serviceUuids.join(", ")}; FFE1: ${connection.characteristicProperties.join(", ")}\n`,
     );
     transport = connection.transport;
@@ -172,16 +186,17 @@ async function openSession(command: Command, options: Options): Promise<Session>
 
 function save(session: Session, name: string, report: unknown, text: string): void {
   writeFileSync(join(session.directory, `${name}.json`), JSON.stringify(report, null, 2) + "\n");
-  writeFileSync(join(session.directory, `${name}.txt`), text + "\n");
+  // The text report is meant to be read in a terminal or editor, so it is made inert too.
+  writeFileSync(join(session.directory, `${name}.txt`), printable(text) + "\n");
 }
 
 async function recon(session: Session): Promise<ReconReport> {
   const report = await runRecon(session.client, {
-    onStep: (step) => console.log(`  ${step.ok ? "[ok]" : "[--]"} ${step.title}: ${step.detail}`),
+    onStep: (step) => say(`  ${step.ok ? "[ok]" : "[--]"} ${step.title}: ${step.detail}`),
   });
   const text = renderRecon(report);
   save(session, "recon", report, text);
-  console.log(`\n${text.split("\n").at(-1)}\n`);
+  say(`\n${text.split("\n").at(-1)}\n`);
   return report;
 }
 
@@ -190,7 +205,7 @@ async function scan(session: Session, resetFirst: boolean): Promise<ScanReport> 
     await session.client.elm.command("ATZ", { timeoutMs: 6000 });
     await session.client.configureOutput();
   }
-  console.log("Suche Steuergeräte ...");
+  say("Suche Steuergeräte ...");
   let found = 0;
   const report = await scanVag(session.client, {
     onProgress: (progress) => {
@@ -199,20 +214,21 @@ async function scan(session: Session, resetFirst: boolean): Promise<ScanReport> 
         const live = process.stdout.isTTY === true;
         if (progress.found) {
           found++;
-          console.log(`${live ? "\r" : ""}  Steuergerät auf ${hexId(progress.tx)} gefunden (${found} bisher)        `);
+          if (live) process.stdout.write("\r");
+          say(`  Steuergerät auf ${hexId(progress.tx)} gefunden (${found} bisher)        `);
         }
         if (live) {
           process.stdout.write(`\r  ${progress.index}/${progress.total} Kennungen geprüft`);
           if (progress.index === progress.total) process.stdout.write("\n");
         }
       } else {
-        console.log(`  Lese ${progress.index}/${progress.total}: ${hexId(progress.target.tx)}`);
+        say(`  Lese ${progress.index}/${progress.total}: ${hexId(progress.target.tx)}`);
       }
     },
   });
   const text = renderScan(report);
   save(session, "scan", report, text);
-  console.log(`\n${text}\n`);
+  say(`\n${text}\n`);
   return report;
 }
 
@@ -228,12 +244,12 @@ async function main(): Promise<number> {
   });
   const command = positionals[0];
   if (values.help || command === undefined || !["doctor", "recon", "scan", "all"].includes(command)) {
-    console.log(usage());
+    say(usage());
     return values.help ? 0 : 2;
   }
   const seconds = Number(values.seconds);
   if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
-    console.error("--seconds muss zwischen 1 und 60 liegen.");
+    complain("--seconds muss zwischen 1 und 60 liegen.");
     return 2;
   }
   const options: Options = { sim: values.sim, device: values.device, seconds };
@@ -257,8 +273,8 @@ async function main(): Promise<number> {
     throw error;
   } finally {
     await session.close().catch(() => undefined);
-    console.log(`Mitschnitt: ${session.directory}`);
-    console.log("Der Mitschnitt enthält die Fahrgestellnummer. Nicht ungeschwärzt veröffentlichen.");
+    say(`Mitschnitt: ${session.directory}`);
+    say("Der Mitschnitt enthält die Fahrgestellnummer. Nicht ungeschwärzt veröffentlichen.");
   }
   return exitCode;
 }
@@ -267,11 +283,11 @@ main().then(
   (code) => process.exit(code),
   (error: unknown) => {
     if (error instanceof PolicyViolation) {
-      console.error(`\nInterner Fehler: Die Sicherheitsprüfung hat einen Befehl gestoppt (${error.message}). Es wurde nichts gesendet.`);
+      complain(`\nInterner Fehler: Die Sicherheitsprüfung hat einen Befehl gestoppt (${error.message}). Es wurde nichts gesendet.`);
     } else if (error instanceof BluetoothUnavailableError || error instanceof ScanAbortedError) {
-      console.error(`\n${error.message}`);
+      complain(`\n${error.message}`);
     } else {
-      console.error(`\nFehler: ${error instanceof Error ? error.message : String(error)}`);
+      complain(`\nFehler: ${error instanceof Error ? error.message : String(error)}`);
     }
     process.exit(1);
   },
