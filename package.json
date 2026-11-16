@@ -1,0 +1,24 @@
+{
+  "name": "klartext-obd",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source, read-only vehicle diagnostics for VAG cars over ELM327-dialect BLE adapters",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test \"packages/*/test/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "npm run typecheck && npm test",
+    "klartext": "node packages/cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

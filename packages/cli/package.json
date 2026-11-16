@@ -1,0 +1,15 @@
+{
+  "name": "@klartext/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Command-line bench tool: adapter recon, VAG scan, capture",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "klartext": "./src/main.ts"
+  },
+  "dependencies": {
+    "@klartext/core": "*",
+    "@stoprocent/noble": "^2.8.0"
+  }
+}

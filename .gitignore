@@ -1,0 +1,6 @@
+node_modules/
+# Captures contain the VIN and other vehicle-identifying data. Never commit them
+# unredacted; curated, redacted fixtures live in packages/core/test/fixtures/.
+captures/
+*.log
+.DS_Store
